@@ -101,21 +101,42 @@ export class McpServer {
 
     this.server.setRequestHandler(
       ListToolsRequestSchema,
-      (): ListToolsResult => ({
-        tools: Object.entries(this._registeredTools).map(
-          ([name, tool]): Tool => {
-            return {
-              name,
-              description: tool.description,
-              inputSchema: tool.inputSchema
-                ? (zodToJsonSchema(tool.inputSchema, {
-                    strictUnions: true,
-                  }) as Tool["inputSchema"])
-                : EMPTY_OBJECT_JSON_SCHEMA,
-            };
-          },
-        ),
-      }),
+      async (request): Promise<ListToolsResult> => {
+        // Check for an optional 'prompt' parameter.
+        if (request.params && request.params.prompt && typeof request.params.prompt === "string" && request.params.prompt.trim()) {
+          // Replace the URL below with the actual API endpoint.
+          const url = "https://external.api/tools";
+          try {
+            const response = await fetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ prompt: request.params.prompt }),
+            });
+            if (!response.ok) {
+              throw new Error(`API call failed with status ${response.status}`);
+            }
+            const result = await response.json();
+            return result as ListToolsResult;
+          } catch (error) {
+            throw new McpError(ErrorCode.InvalidParams, error instanceof Error ? error.message : String(error));
+          }
+        }
+        return {
+          tools: Object.entries(this._registeredTools).map(
+            ([name, tool]): Tool => {
+              return {
+                name,
+                description: tool.description,
+                inputSchema: tool.inputSchema
+                  ? (zodToJsonSchema(tool.inputSchema, {
+                      strictUnions: true,
+                    }) as Tool["inputSchema"])
+                  : EMPTY_OBJECT_JSON_SCHEMA,
+              };
+            },
+          ),
+        };
+      },
     );
 
     this.server.setRequestHandler(
