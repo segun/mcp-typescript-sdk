@@ -417,10 +417,13 @@ export class Client<
 
   async listTools(
     params?: ListToolsRequest["params"],
+    prompt?: string,
     options?: RequestOptions,
   ) {
+    // Merge the prompt into params (adding the prompt property to RequestSchema)
+    const mergedParams = { ...params, ...(prompt !== undefined && { prompt }) };
     return this.request(
-      { method: "tools/list", params },
+      { method: "tools/list", params: mergedParams },
       ListToolsResultSchema,
       options,
     );

@@ -87,12 +87,12 @@ export class McpServer {
     if (this._toolHandlersInitialized) {
       return;
     }
-    
+
     this.server.assertCanSetRequestHandler(
-      ListToolsRequestSchema.shape.method.value,
+      ListToolsRequestSchema.shape.method.value
     );
     this.server.assertCanSetRequestHandler(
-      CallToolRequestSchema.shape.method.value,
+      CallToolRequestSchema.shape.method.value
     );
 
     this.server.registerCapabilities({
@@ -101,21 +101,55 @@ export class McpServer {
 
     this.server.setRequestHandler(
       ListToolsRequestSchema,
-      (): ListToolsResult => ({
-        tools: Object.entries(this._registeredTools).map(
-          ([name, tool]): Tool => {
-            return {
-              name,
-              description: tool.description,
-              inputSchema: tool.inputSchema
-                ? (zodToJsonSchema(tool.inputSchema, {
-                    strictUnions: true,
-                  }) as Tool["inputSchema"])
-                : EMPTY_OBJECT_JSON_SCHEMA,
-            };
-          },
-        ),
-      }),
+      async (request): Promise<ListToolsResult> => {
+        // Check for an optional 'prompt' parameter.
+        console.log("List Tool Request Schema", request);
+        if (
+          request.params &&
+          request.params.prompt &&
+          typeof request.params.prompt === "string" &&
+          request.params.prompt.trim()
+        ) {
+          // Replace the URL below with the actual API endpoint.
+          const url = "http://localhost:3001/api/fn/get-functions";
+          try {
+            const response = await fetch(url, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "x-api-key": "sk_test_7xQ2pL9RgT4zYvW1aB3nC6mZ8dF5jH0kX",
+              },
+              body: JSON.stringify({ prompt: request.params.prompt }),
+            });
+            if (response.status !== 200) {
+              throw new Error(`API call failed with status ${response.status}`);
+            }
+            const result = await response.json();
+            console.log("List Tool Response", result);
+            return result;
+          } catch (error) {
+            throw new McpError(
+              ErrorCode.InvalidParams,
+              error instanceof Error ? error.message : String(error)
+            );
+          }
+        }
+        return {
+          tools: Object.entries(this._registeredTools).map(
+            ([name, tool]): Tool => {
+              return {
+                name,
+                description: tool.description,
+                inputSchema: tool.inputSchema
+                  ? (zodToJsonSchema(tool.inputSchema, {
+                      strictUnions: true,
+                    }) as Tool["inputSchema"])
+                  : EMPTY_OBJECT_JSON_SCHEMA,
+              };
+            }
+          ),
+        };
+      }
     );
 
     this.server.setRequestHandler(
@@ -125,18 +159,18 @@ export class McpServer {
         if (!tool) {
           throw new McpError(
             ErrorCode.InvalidParams,
-            `Tool ${request.params.name} not found`,
+            `Tool ${request.params.name} not found`
           );
         }
 
         if (tool.inputSchema) {
           const parseResult = await tool.inputSchema.safeParseAsync(
-            request.params.arguments,
+            request.params.arguments
           );
           if (!parseResult.success) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              `Invalid arguments for tool ${request.params.name}: ${parseResult.error.message}`,
+              `Invalid arguments for tool ${request.params.name}: ${parseResult.error.message}`
             );
           }
 
@@ -171,7 +205,7 @@ export class McpServer {
             };
           }
         }
-      },
+      }
     );
 
     this._toolHandlersInitialized = true;
@@ -185,7 +219,7 @@ export class McpServer {
     }
 
     this.server.assertCanSetRequestHandler(
-      CompleteRequestSchema.shape.method.value,
+      CompleteRequestSchema.shape.method.value
     );
 
     this.server.setRequestHandler(
@@ -201,10 +235,10 @@ export class McpServer {
           default:
             throw new McpError(
               ErrorCode.InvalidParams,
-              `Invalid completion reference: ${request.params.ref}`,
+              `Invalid completion reference: ${request.params.ref}`
             );
         }
-      },
+      }
     );
 
     this._completionHandlerInitialized = true;
@@ -212,13 +246,13 @@ export class McpServer {
 
   private async handlePromptCompletion(
     request: CompleteRequest,
-    ref: PromptReference,
+    ref: PromptReference
   ): Promise<CompleteResult> {
     const prompt = this._registeredPrompts[ref.name];
     if (!prompt) {
       throw new McpError(
         ErrorCode.InvalidParams,
-        `Prompt ${request.params.ref.name} not found`,
+        `Prompt ${request.params.ref.name} not found`
       );
     }
 
@@ -238,10 +272,10 @@ export class McpServer {
 
   private async handleResourceCompletion(
     request: CompleteRequest,
-    ref: ResourceReference,
+    ref: ResourceReference
   ): Promise<CompleteResult> {
     const template = Object.values(this._registeredResourceTemplates).find(
-      (t) => t.resourceTemplate.uriTemplate.toString() === ref.uri,
+      (t) => t.resourceTemplate.uriTemplate.toString() === ref.uri
     );
 
     if (!template) {
@@ -252,12 +286,12 @@ export class McpServer {
 
       throw new McpError(
         ErrorCode.InvalidParams,
-        `Resource template ${request.params.ref.uri} not found`,
+        `Resource template ${request.params.ref.uri} not found`
       );
     }
 
     const completer = template.resourceTemplate.completeCallback(
-      request.params.argument.name,
+      request.params.argument.name
     );
     if (!completer) {
       return EMPTY_COMPLETION_RESULT;
@@ -275,13 +309,13 @@ export class McpServer {
     }
 
     this.server.assertCanSetRequestHandler(
-      ListResourcesRequestSchema.shape.method.value,
+      ListResourcesRequestSchema.shape.method.value
     );
     this.server.assertCanSetRequestHandler(
-      ListResourceTemplatesRequestSchema.shape.method.value,
+      ListResourceTemplatesRequestSchema.shape.method.value
     );
     this.server.assertCanSetRequestHandler(
-      ReadResourceRequestSchema.shape.method.value,
+      ReadResourceRequestSchema.shape.method.value
     );
 
     this.server.registerCapabilities({
@@ -296,12 +330,12 @@ export class McpServer {
             uri,
             name: resource.name,
             ...resource.metadata,
-          }),
+          })
         );
 
         const templateResources: Resource[] = [];
         for (const template of Object.values(
-          this._registeredResourceTemplates,
+          this._registeredResourceTemplates
         )) {
           if (!template.resourceTemplate.listCallback) {
             continue;
@@ -317,14 +351,14 @@ export class McpServer {
         }
 
         return { resources: [...resources, ...templateResources] };
-      },
+      }
     );
 
     this.server.setRequestHandler(
       ListResourceTemplatesRequestSchema,
       async () => {
         const resourceTemplates = Object.entries(
-          this._registeredResourceTemplates,
+          this._registeredResourceTemplates
         ).map(([name, template]) => ({
           name,
           uriTemplate: template.resourceTemplate.uriTemplate.toString(),
@@ -332,7 +366,7 @@ export class McpServer {
         }));
 
         return { resourceTemplates };
-      },
+      }
     );
 
     this.server.setRequestHandler(
@@ -348,10 +382,10 @@ export class McpServer {
 
         // Then check templates
         for (const template of Object.values(
-          this._registeredResourceTemplates,
+          this._registeredResourceTemplates
         )) {
           const variables = template.resourceTemplate.uriTemplate.match(
-            uri.toString(),
+            uri.toString()
           );
           if (variables) {
             return template.readCallback(uri, variables, extra);
@@ -360,13 +394,13 @@ export class McpServer {
 
         throw new McpError(
           ErrorCode.InvalidParams,
-          `Resource ${uri} not found`,
+          `Resource ${uri} not found`
         );
-      },
+      }
     );
 
     this.setCompletionRequestHandler();
-    
+
     this._resourceHandlersInitialized = true;
   }
 
@@ -378,10 +412,10 @@ export class McpServer {
     }
 
     this.server.assertCanSetRequestHandler(
-      ListPromptsRequestSchema.shape.method.value,
+      ListPromptsRequestSchema.shape.method.value
     );
     this.server.assertCanSetRequestHandler(
-      GetPromptRequestSchema.shape.method.value,
+      GetPromptRequestSchema.shape.method.value
     );
 
     this.server.registerCapabilities({
@@ -400,9 +434,9 @@ export class McpServer {
                 ? promptArgumentsFromSchema(prompt.argsSchema)
                 : undefined,
             };
-          },
+          }
         ),
-      }),
+      })
     );
 
     this.server.setRequestHandler(
@@ -412,18 +446,18 @@ export class McpServer {
         if (!prompt) {
           throw new McpError(
             ErrorCode.InvalidParams,
-            `Prompt ${request.params.name} not found`,
+            `Prompt ${request.params.name} not found`
           );
         }
 
         if (prompt.argsSchema) {
           const parseResult = await prompt.argsSchema.safeParseAsync(
-            request.params.arguments,
+            request.params.arguments
           );
           if (!parseResult.success) {
             throw new McpError(
               ErrorCode.InvalidParams,
-              `Invalid arguments for prompt ${request.params.name}: ${parseResult.error.message}`,
+              `Invalid arguments for prompt ${request.params.name}: ${parseResult.error.message}`
             );
           }
 
@@ -434,11 +468,11 @@ export class McpServer {
           const cb = prompt.callback as PromptCallback<undefined>;
           return await Promise.resolve(cb(extra));
         }
-      },
+      }
     );
 
     this.setCompletionRequestHandler();
-    
+
     this._promptHandlersInitialized = true;
   }
 
@@ -454,7 +488,7 @@ export class McpServer {
     name: string,
     uri: string,
     metadata: ResourceMetadata,
-    readCallback: ReadResourceCallback,
+    readCallback: ReadResourceCallback
   ): void;
 
   /**
@@ -463,7 +497,7 @@ export class McpServer {
   resource(
     name: string,
     template: ResourceTemplate,
-    readCallback: ReadResourceTemplateCallback,
+    readCallback: ReadResourceTemplateCallback
   ): void;
 
   /**
@@ -473,7 +507,7 @@ export class McpServer {
     name: string,
     template: ResourceTemplate,
     metadata: ResourceMetadata,
-    readCallback: ReadResourceTemplateCallback,
+    readCallback: ReadResourceTemplateCallback
   ): void;
 
   resource(
@@ -531,7 +565,7 @@ export class McpServer {
   tool<Args extends ZodRawShape>(
     name: string,
     paramsSchema: Args,
-    cb: ToolCallback<Args>,
+    cb: ToolCallback<Args>
   ): void;
 
   /**
@@ -541,7 +575,7 @@ export class McpServer {
     name: string,
     description: string,
     paramsSchema: Args,
-    cb: ToolCallback<Args>,
+    cb: ToolCallback<Args>
   ): void;
 
   tool(name: string, ...rest: unknown[]): void {
@@ -586,7 +620,7 @@ export class McpServer {
   prompt<Args extends PromptArgsRawShape>(
     name: string,
     argsSchema: Args,
-    cb: PromptCallback<Args>,
+    cb: PromptCallback<Args>
   ): void;
 
   /**
@@ -596,7 +630,7 @@ export class McpServer {
     name: string,
     description: string,
     argsSchema: Args,
-    cb: PromptCallback<Args>,
+    cb: PromptCallback<Args>
   ): void;
 
   prompt(name: string, ...rest: unknown[]): void {
@@ -629,7 +663,7 @@ export class McpServer {
  * A callback to complete one variable within a resource template's URI template.
  */
 export type CompleteResourceTemplateCallback = (
-  value: string,
+  value: string
 ) => string[] | Promise<string[]>;
 
 /**
@@ -653,7 +687,7 @@ export class ResourceTemplate {
       complete?: {
         [variable: string]: CompleteResourceTemplateCallback;
       };
-    },
+    }
   ) {
     this._uriTemplate =
       typeof uriTemplate === "string"
@@ -679,7 +713,7 @@ export class ResourceTemplate {
    * Gets the callback for completing a specific URI template variable, if one was provided.
    */
   completeCallback(
-    variable: string,
+    variable: string
   ): CompleteResourceTemplateCallback | undefined {
     return this._callbacks.complete?.[variable];
   }
@@ -694,7 +728,7 @@ export type ToolCallback<Args extends undefined | ZodRawShape = undefined> =
   Args extends ZodRawShape
     ? (
         args: z.objectOutputType<Args, ZodTypeAny>,
-        extra: RequestHandlerExtra,
+        extra: RequestHandlerExtra
       ) => CallToolResult | Promise<CallToolResult>
     : (extra: RequestHandlerExtra) => CallToolResult | Promise<CallToolResult>;
 
@@ -717,7 +751,7 @@ export type ResourceMetadata = Omit<Resource, "uri" | "name">;
  * Callback to list all resources matching a given template.
  */
 export type ListResourcesCallback = (
-  extra: RequestHandlerExtra,
+  extra: RequestHandlerExtra
 ) => ListResourcesResult | Promise<ListResourcesResult>;
 
 /**
@@ -725,7 +759,7 @@ export type ListResourcesCallback = (
  */
 export type ReadResourceCallback = (
   uri: URL,
-  extra: RequestHandlerExtra,
+  extra: RequestHandlerExtra
 ) => ReadResourceResult | Promise<ReadResourceResult>;
 
 type RegisteredResource = {
@@ -740,7 +774,7 @@ type RegisteredResource = {
 export type ReadResourceTemplateCallback = (
   uri: URL,
   variables: Variables,
-  extra: RequestHandlerExtra,
+  extra: RequestHandlerExtra
 ) => ReadResourceResult | Promise<ReadResourceResult>;
 
 type RegisteredResourceTemplate = {
@@ -756,11 +790,11 @@ type PromptArgsRawShape = {
 };
 
 export type PromptCallback<
-  Args extends undefined | PromptArgsRawShape = undefined,
+  Args extends undefined | PromptArgsRawShape = undefined
 > = Args extends PromptArgsRawShape
   ? (
       args: z.objectOutputType<Args, ZodTypeAny>,
-      extra: RequestHandlerExtra,
+      extra: RequestHandlerExtra
     ) => GetPromptResult | Promise<GetPromptResult>
   : (extra: RequestHandlerExtra) => GetPromptResult | Promise<GetPromptResult>;
 
@@ -771,14 +805,14 @@ type RegisteredPrompt = {
 };
 
 function promptArgumentsFromSchema(
-  schema: ZodObject<PromptArgsRawShape>,
+  schema: ZodObject<PromptArgsRawShape>
 ): PromptArgument[] {
   return Object.entries(schema.shape).map(
     ([name, field]): PromptArgument => ({
       name,
       description: field.description,
       required: !field.isOptional(),
-    }),
+    })
   );
 }
 
